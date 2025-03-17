@@ -110,7 +110,7 @@ const MainLayout = () => {
             </li>
             <li>
               <Link
-                to="AttendanceMarkSheet"
+                to="AttendanceSummary"
                 className="flex items-center p-2 text-white rounded hover:bg-[#0c3044] transition-colors"
               >
                 <AiOutlineSetting className="text-xl" />

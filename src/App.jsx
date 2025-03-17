@@ -10,7 +10,7 @@ import { browserLocalPersistence, setPersistence } from "firebase/auth";
 import { auth } from "./Services/firebaseConfig";
 import EmployeeSalaryTable from "./Component/EmployeeSalaryTable";
 import AttendanceMarkSheet from "./Component/Attandance";
-
+import AttendanceSummary from "./Component/AttendanceSummary";
 setPersistence(auth, browserLocalPersistence)
   .then(() => {
     // Persistence set successfully
@@ -38,6 +38,7 @@ function App() {
           <Route path="management" element={<SalaryManagement />} />
           <Route path="EmployeeSalaryList" element={<EmployeeSalaryTable />} />
           <Route path="AttendanceMarkSheet" element={<AttendanceMarkSheet />} />
+          <Route path="AttendanceSummary" element={<AttendanceSummary />} />
 
         </Route>
 

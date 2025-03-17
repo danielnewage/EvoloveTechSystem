@@ -13,32 +13,28 @@ import {
 import { db } from '../Services/firebaseConfig'; // Adjust the path as needed
 
 const AttendanceMarkSheet = () => {
-  // Generate time options from 06:00 to 15:00 in 15-minute intervals
-  const generateTimeOptions = () => {
-    const times = [];
-    const start = 6 * 60;
-    const end = 15 * 60;
-    const step = 15;
-    for (let t = start; t <= end; t += step) {
-      const hours = Math.floor(t / 60);
-      const minutes = t % 60;
-      const timeString = `${hours.toString().padStart(2, '0')}:${minutes
-        .toString()
-        .padStart(2, '0')}`;
-      times.push(timeString);
-    }
-    return times;
+  // Utility function to get current time in "HH:MM" format
+  const getCurrentTimeString = () => {
+    const now = new Date();
+    const hours = now.getHours().toString().padStart(2, '0');
+    const minutes = now.getMinutes().toString().padStart(2, '0');
+    return `${hours}:${minutes}`;
   };
 
-  const timeOptions = generateTimeOptions();
+  // Helper to check if a given date is a weekend (Saturday or Sunday)
+  const isWeekend = (date) => {
+    const day = date.getDay(); // Sunday = 0, Saturday = 6
+    return day === 0 || day === 6;
+  };
 
   // Form, attendance and modal states
   const [attendance, setAttendance] = useState([]); // from top-level "employeesattendance"
   const [name, setName] = useState('');
   const [employeeId, setEmployeeId] = useState('');
   const [role, setRole] = useState('');
-  const [status, setStatus] = useState('Holiday');
-  const [timeIn, setTimeIn] = useState(timeOptions[0]);
+  const [status, setStatus] = useState('Present');
+  // New state for late arrival approval (default: No)
+  const [lateArrivalApproved, setLateArrivalApproved] = useState('No');
   const [selectedDate, setSelectedDate] = useState(new Date());
 
   // Filter and modal states
@@ -46,6 +42,10 @@ const AttendanceMarkSheet = () => {
   const [filterStatus, setFilterStatus] = useState('All');
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editRecord, setEditRecord] = useState(null);
+
+  // New holiday modal states
+  const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
+  const [holidayOption, setHolidayOption] = useState('No'); // "Yes" means mark as holiday
 
   // Employees state (from Firestore)
   const [employees, setEmployees] = useState([]);
@@ -108,35 +108,41 @@ const AttendanceMarkSheet = () => {
     }
   };
 
-  // Determine if time selection is required
-  const requiresTime = status === 'Present' || status === 'Work From Home' || status === 'Holiday';
+  // Check if current time falls between 18:00 and 03:00.
+  const isWithinAttendanceWindow = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    // Attendance allowed if hour is 15 or later OR before 3 (spanning midnight)
+    return currentHour >= 15 || currentHour < 3;
+  };
 
-  // Mark attendance: add record to both employee subcollection (optional) and top-level "employeesattendance"
+  // Mark single attendance: record current time automatically
   const markAttendance = async () => {
-    if (name.trim() === '' || role.trim() === '' || employeeId === '') {
-      alert("Please select an employee (name and role).");
+    if (!isWithinAttendanceWindow()) {
+      alert("Attendance can only be marked between 18:00 and 03:00.");
       return;
     }
-    if (requiresTime && timeIn.trim() === '') {
-      alert("Please select Time In.");
+    if (name.trim() === '' || role.trim() === '' || employeeId === '') {
+      alert("Please select an employee (name and role).");
       return;
     }
     if (selectedDate > new Date()) {
       alert("Selected date cannot be in the future.");
       return;
     }
-
+    const currentTime = getCurrentTimeString();
     let finalStatus = status;
-    if (status === 'Holiday') {
-      finalStatus = "Present";
-    } else if (requiresTime) {
-      if (status === 'Present' && timeIn >= "08:00") {
+    if (isWeekend(selectedDate)) {
+      finalStatus = "Off";
+    } else if (status === 'Holiday') {
+      finalStatus = "Holiday";
+    } else {
+      if (status === 'Present' && currentTime >= "20:00" && lateArrivalApproved === 'No') {
         finalStatus = "Half Present";
       } else if (status === 'Work From Home') {
-        finalStatus = "Present";
+        finalStatus = "Work From Home";
       }
     }
-
     const dateString = selectedDate.toLocaleDateString('en-US');
     const newRecord = {
       name,
@@ -144,34 +150,76 @@ const AttendanceMarkSheet = () => {
       employeeId,
       status: finalStatus,
       date: dateString,
-      timeIn: requiresTime ? timeIn : '-',
+      timeIn: currentTime,
+      lateArrivalApproved,
       createdAt: new Date()
     };
-
     try {
-      // Optionally add to employee's subcollection
       const subcollectionRef = collection(db, "employees", employeeId, "attendance");
       await addDoc(subcollectionRef, newRecord);
-
-      // Add record to top-level "employeesattendance" collection
       const topLevelRef = collection(db, "employeesattendance");
       const docRef = await addDoc(topLevelRef, newRecord);
       console.log("Attendance marked with ID:", docRef.id);
       setAttendance([...attendance, { id: docRef.id, ...newRecord }]);
-
-      // Reset form fields
       setEmployeeId('');
       setName('');
       setRole('');
+      setLateArrivalApproved('No');
     } catch (error) {
       console.error("Error marking attendance:", error);
     }
   };
 
-  // Current date string
+  // Mark holiday attendance for all eligible employees
+  const markHolidayAttendanceForAll = async () => {
+    if (holidayOption !== 'Yes') {
+      alert("Please select 'Yes' for holiday.");
+      return;
+    }
+    if (!isWithinAttendanceWindow()) {
+      alert("Attendance can only be marked between 18:00 and 03:00.");
+      return;
+    }
+    const currentTime = getCurrentTimeString();
+    const dateString = selectedDate.toLocaleDateString('en-US');
+    const eligibleEmployees = employees.filter(
+      emp =>
+        emp.employmentType !== "Remote" &&
+        emp.employmentType !== "Myself" &&
+        !attendance.some(record => record.employeeId === emp.id && record.date === dateString)
+    );
+    if (eligibleEmployees.length === 0) {
+      alert("Attendance for all eligible employees has already been marked for the selected date.");
+      return;
+    }
+    for (const emp of eligibleEmployees) {
+      const holidayRecord = {
+        name: emp.name,
+        role: emp.role,
+        employeeId: emp.id,
+        status: isWeekend(selectedDate) ? "Off" : "Present",
+        date: dateString,
+        timeIn: currentTime,
+        lateArrivalApproved: "No",
+        createdAt: new Date()
+      };
+      try {
+        const subcollectionRef = collection(db, "employees", emp.id, "attendance");
+        await addDoc(subcollectionRef, holidayRecord);
+        const topLevelRef = collection(db, "employeesattendance");
+        const docRef = await addDoc(topLevelRef, holidayRecord);
+        console.log("Holiday attendance marked for", emp.name, "with ID:", docRef.id);
+        setAttendance(prev => [...prev, { id: docRef.id, ...holidayRecord }]);
+      } catch (error) {
+        console.error("Error marking holiday attendance for", emp.name, error);
+      }
+    }
+    setIsHolidayModalOpen(false);
+    setHolidayOption('No');
+  };
+
   const currentDateString = selectedDate.toLocaleDateString('en-US');
 
-  // Filter employees: exclude "Remote"/"Myself" and those with attendance record for current date
   const filteredEmployees = employees.filter(
     emp =>
       emp.employmentType !== "Remote" &&
@@ -179,7 +227,6 @@ const AttendanceMarkSheet = () => {
       !attendance.some(record => record.employeeId === emp.id && record.date === currentDateString)
   );
 
-  // Filter attendance records based on search
   const filteredAttendanceRecords = attendance.filter(record => {
     if (filterName.trim() && !record.name.toLowerCase().includes(filterName.toLowerCase())) {
       return false;
@@ -190,7 +237,6 @@ const AttendanceMarkSheet = () => {
     return true;
   });
 
-  // Open edit modal if record exists for current date
   const openEditModal = (record) => {
     if (attendance.find(rec => rec.employeeId === record.employeeId && rec.date === currentDateString)) {
       setEditRecord(record);
@@ -200,18 +246,23 @@ const AttendanceMarkSheet = () => {
     }
   };
 
-  // Update attendance record in top-level "employeesattendance"
   const updateRecord = async () => {
+    if (!isWithinAttendanceWindow()) {
+      alert("Attendance can only be updated between 18:00 and 03:00.");
+      return;
+    }
     if (!editRecord.name.trim() || !editRecord.role.trim()) {
       alert("Name and Role cannot be changed.");
       return;
     }
-    const timingRequired = editRecord.status === 'Present' || editRecord.status === 'Work From Home' || editRecord.status === 'Holiday';
+    const currentTime = getCurrentTimeString();
     let updatedStatus = editRecord.status;
-    if (editRecord.status === 'Holiday') {
+    if (isWeekend(selectedDate)) {
+      updatedStatus = "Off";
+    } else if (editRecord.status === 'Holiday') {
       updatedStatus = "Present";
-    } else if (timingRequired) {
-      if (editRecord.status === 'Present' && editRecord.timeIn >= "08:00") {
+    } else {
+      if (editRecord.status === 'Present' && currentTime >= "08:00" && editRecord.lateArrivalApproved === 'No') {
         updatedStatus = "Half Present";
       } else if (editRecord.status === 'Work From Home') {
         updatedStatus = "Present";
@@ -220,10 +271,9 @@ const AttendanceMarkSheet = () => {
     const updatedRecord = {
       ...editRecord,
       status: updatedStatus,
-      timeIn: timingRequired ? editRecord.timeIn : '-',
+      timeIn: currentTime,
     };
     try {
-      // Update document in top-level "employeesattendance" collection
       const attendanceDocRef = doc(db, "employeesattendance", editRecord.id);
       await updateDoc(attendanceDocRef, updatedRecord);
       setAttendance(attendance.map(rec => rec.id === updatedRecord.id ? updatedRecord : rec));
@@ -240,13 +290,6 @@ const AttendanceMarkSheet = () => {
       [field]: value,
     });
   };
-
-  const modalRequiresTime =
-    editRecord &&
-    ((editRecord.status === 'Present' ||
-      editRecord.status === 'Work From Home' ||
-      editRecord.status === 'Holiday') ||
-      (editRecord.timeIn && editRecord.timeIn !== '-'));
 
   return (
     <div className="bg-white min-h-screen flex flex-col items-center">
@@ -303,9 +346,8 @@ const AttendanceMarkSheet = () => {
                 disabled
               />
             </div>
-
-            {/* Status and Time In fields */}
-            <div className={`grid ${requiresTime ? "grid-cols-2" : "grid-cols-1"} gap-4 mb-4`}>
+            {/* Status field */}
+            <div className="grid grid-cols-1 gap-4 mb-4">
               <select
                 className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
                 value={status}
@@ -317,36 +359,44 @@ const AttendanceMarkSheet = () => {
                 <option value="Emergency Leave">Emergency Leave</option>
                 <option value="Medical Leave">Medical Leave</option>
                 <option value="Absent">Absent</option>
-                <option value="Holiday">Holiday</option>
               </select>
-              {requiresTime && (
+            </div>
+            {/* Conditionally show Late Arrival Approval field only for Present and Work From Home */}
+            {(status === 'Present' || status === 'Work From Home') && (
+              <div className="grid grid-cols-1 gap-4 mb-4">
+                <label className="font-medium">Late Arrival Approved?</label>
                 <select
                   className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                  value={timeIn}
-                  onChange={(e) => setTimeIn(e.target.value)}
+                  value={lateArrivalApproved}
+                  onChange={(e) => setLateArrivalApproved(e.target.value)}
                 >
-                  {timeOptions.map((time, index) => (
-                    <option key={index} value={time}>
-                      {time}
-                    </option>
-                  ))}
+                  <option value="No">No</option>
+                  <option value="Yes">Yes</option>
                 </select>
-              )}
-            </div>
+              </div>
+            )}
+
+
             <button
               onClick={markAttendance}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold p-3 rounded-md transition"
             >
               Mark Attendance
             </button>
+            {/* Button to open holiday modal */}
+            <button
+              onClick={() => setIsHolidayModalOpen(true)}
+              className="mt-4 w-full bg-red-500 hover:bg-red-600 text-white font-semibold p-3 rounded-md transition"
+            >
+              Mark Holiday For All
+            </button>
           </div>
         </div>
 
-        {requiresTime && (
-          <div className="mb-6 text-sm text-gray-600">
-            Office Timing: 06:00 to 15:00 (Select from dropdown)
-          </div>
-        )}
+        {/* Display note about automatic time recording */}
+        <div className="mb-6 text-sm text-gray-600">
+          Note: The current time is recorded automatically. Attendance is only allowed between 18:00 and 03:00.
+        </div>
 
         {/* Filter Section */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
@@ -371,6 +421,7 @@ const AttendanceMarkSheet = () => {
             <option value="Medical Leave">Medical Leave</option>
             <option value="Absent">Absent</option>
             <option value="Holiday">Holiday</option>
+            <option value="Off">Off</option>
           </select>
         </div>
 
@@ -396,15 +447,16 @@ const AttendanceMarkSheet = () => {
                   <td className="px-6 py-4 text-sm text-gray-700">{record.role}</td>
                   <td className="px-6 py-4 text-sm">
                     <span
-                      className={`px-3 py-1 rounded-full font-medium ${
-                        record.status === 'Present'
+                      className={`px-3 py-1 rounded-full font-medium ${record.status === 'Present'
                           ? 'bg-green-200 text-green-800'
                           : record.status === 'Half Present'
-                          ? 'bg-yellow-200 text-yellow-800'
-                          : record.status === 'Absent'
-                          ? 'bg-red-200 text-red-800'
-                          : 'bg-blue-200 text-blue-800'
-                      }`}
+                            ? 'bg-yellow-200 text-yellow-800'
+                            : record.status === 'Absent'
+                              ? 'bg-red-200 text-red-800'
+                              : record.status === 'Off'
+                                ? 'bg-gray-400 text-gray-800'
+                                : 'bg-blue-200 text-blue-800'
+                        }`}
                     >
                       {record.status}
                     </span>
@@ -445,7 +497,6 @@ const AttendanceMarkSheet = () => {
               </button>
             </div>
             <div className="space-y-4">
-              {/* Disabled Name and Role fields */}
               <div>
                 <label className="block mb-1 font-medium">Name</label>
                 <input
@@ -478,21 +529,20 @@ const AttendanceMarkSheet = () => {
                   <option value="Medical Leave">Medical Leave</option>
                   <option value="Absent">Absent</option>
                   <option value="Holiday">Holiday</option>
+                  <option value="Off">Off</option>
                 </select>
               </div>
-              {modalRequiresTime && (
+              {/* Conditionally show Late Arrival Approved field in the edit modal */}
+              {(editRecord.status === 'Present' || editRecord.status === 'Work From Home') && (
                 <div>
-                  <label className="block mb-1 font-medium">Time In</label>
+                  <label className="block mb-1 font-medium">Late Arrival Approved?</label>
                   <select
                     className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
-                    value={editRecord.timeIn}
-                    onChange={(e) => handleEditChange('timeIn', e.target.value)}
+                    value={editRecord.lateArrivalApproved || 'No'}
+                    onChange={(e) => handleEditChange('lateArrivalApproved', e.target.value)}
                   >
-                    {timeOptions.map((time, index) => (
-                      <option key={index} value={time}>
-                        {time}
-                      </option>
-                    ))}
+                    <option value="No">No</option>
+                    <option value="Yes">Yes</option>
                   </select>
                 </div>
               )}
@@ -509,6 +559,40 @@ const AttendanceMarkSheet = () => {
                 className="bg-blue-500 hover:bg-blue-600 text-white font-semibold p-2 rounded-md transition"
               >
                 Save Changes
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Holiday Modal */}
+      {isHolidayModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 bg-black bg-opacity-50">
+          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
+            <h3 className="text-2xl font-bold mb-4">Mark Holiday For All</h3>
+            <div className="mb-4">
+              <label className="block text-gray-700 mb-2">Is today a holiday?</label>
+              <select
+                className="w-full p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+                value={holidayOption}
+                onChange={(e) => setHolidayOption(e.target.value)}
+              >
+                <option value="No">No</option>
+                <option value="Yes">Yes</option>
+              </select>
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                onClick={() => setIsHolidayModalOpen(false)}
+                className="bg-gray-300 text-gray-800 px-4 py-2 rounded hover:bg-gray-400 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={markHolidayAttendanceForAll}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 transition-colors"
+              >
+                Mark Attendance
               </button>
             </div>
           </div>
