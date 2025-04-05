@@ -11,6 +11,7 @@ import { auth } from "./Services/firebaseConfig";
 import EmployeeSalaryTable from "./Component/EmployeeSalaryTable";
 import AttendanceMarkSheet from "./Component/Attandance";
 import AttendanceSummary from "./Component/AttendanceSummary";
+import SalaryManageAuto from "./Component/SalaryMngWithAttandance";
 setPersistence(auth, browserLocalPersistence)
   .then(() => {
     // Persistence set successfully
@@ -21,7 +22,7 @@ setPersistence(auth, browserLocalPersistence)
 
 function App() {
   return (
-    <Router>
+    <Router basename="/EvoloveTechSystem/">
       <Routes>
         {/* Public Route */}
         <Route path="/" element={<LoginPage />} />
@@ -39,6 +40,7 @@ function App() {
           <Route path="EmployeeSalaryList" element={<EmployeeSalaryTable />} />
           <Route path="AttendanceMarkSheet" element={<AttendanceMarkSheet />} />
           <Route path="AttendanceSummary" element={<AttendanceSummary />} />
+          <Route path="SalaryManageAuto" element={<SalaryManageAuto />} />
 
         </Route>
 

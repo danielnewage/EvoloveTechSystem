@@ -1,3 +1,4 @@
+// src/components/AttendanceSummary.jsx
 import React, { useState, useEffect } from 'react';
 import { collection, getDocs } from "firebase/firestore";
 import { db } from '../Services/firebaseConfig';
@@ -8,15 +9,20 @@ const AttendanceSummary = () => {
   const [attendanceRecords, setAttendanceRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
-  // Modal state for individual employee details
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
-  // State for filtering the detailed modal by month (format: YYYY-MM)
   const [detailMonth, setDetailMonth] = useState('');
+  const [summaryFilterMonth, setSummaryFilterMonth] = useState('');
+
+  // Helper to format date as "M/D/YYYY"
+  const formatDate = (dateStr) => {
+    return new Date(dateStr).toLocaleDateString('en-US');
+  };
 
   const currentDate = new Date();
-  const currentMonth = currentDate.getMonth(); 
-  const currentYear = currentDate.getFullYear();
+  const defaultYear = currentDate.getFullYear();
+  const defaultMonth = String(currentDate.getMonth() + 1).padStart(2, '0'); // JS month is 0-indexed
+  const activeFilterMonth = summaryFilterMonth || `${defaultYear}-${defaultMonth}`;
 
   useEffect(() => {
     const fetchAttendance = async () => {
@@ -52,10 +58,11 @@ const AttendanceSummary = () => {
     fetchEmployees();
   }, []);
 
-  // Filter attendance records for current month and year (for summary table)
+  // Filter attendance records for the selected month (for summary table)
   const filteredAttendance = attendanceRecords.filter(record => {
     const recordDate = new Date(record.date);
-    return recordDate.getMonth() === currentMonth && recordDate.getFullYear() === currentYear;
+    const [filterYear, filterMonth] = activeFilterMonth.split('-').map(Number);
+    return recordDate.getFullYear() === filterYear && recordDate.getMonth() === (filterMonth - 1);
   });
 
   // Helper: convert "HH:MM" string to total minutes after midnight.
@@ -64,41 +71,40 @@ const AttendanceSummary = () => {
     return hh * 60 + mm;
   };
 
-  // Group attendance by employeeId and calculate counts.
-  const summaryByEmployee = {};
-  filteredAttendance.forEach(record => {
-    if (!summaryByEmployee[record.employeeId]) {
-      summaryByEmployee[record.employeeId] = { present: 0, absent: 0, lateArrival: 0 };
-    }
-    if (record.status === "Present") {
-      summaryByEmployee[record.employeeId].present += 1;
-    }
-    if (record.status === "Absent") {
-      summaryByEmployee[record.employeeId].absent += 1;
-    }
-    // Late arrival: only count if status is "Present", lateArrivalApproved is "No",
-    // and timeIn is between 18:10 and 20:00 (inclusive)
-    if (
-      record.status === "Present" &&
-      record.lateArrivalApproved === "No" &&
-      record.timeIn &&
-      timeToMinutes(record.timeIn) >= (18 * 60 + 10) &&
-      timeToMinutes(record.timeIn) <= (20 * 60)
-    ) {
-      summaryByEmployee[record.employeeId].lateArrival += 1;
-    }
-  });
-
-  // For the detailed modal, filter records for a specific employee.
-  // If detailMonth is set, filter by that month; otherwise, show all records.
+  // For the detailed modal, generate records including missing dates.
+  // Weekends (Saturday & Sunday) are auto marked as "Off".
   const getEmployeeRecordsForMonth = (employeeId) => {
-    const records = attendanceRecords.filter(record => record.employeeId === employeeId);
-    if (!detailMonth) return records;
-    return records.filter(record => {
+    const activeDetailMonth = detailMonth || activeFilterMonth;
+    // Filter existing records for employee in the selected month.
+    const records = attendanceRecords.filter(record => {
+      if (record.employeeId !== employeeId) return false;
       const recordDate = new Date(record.date);
-      const [year, month] = detailMonth.split('-').map(Number);
+      const [year, month] = activeDetailMonth.split('-').map(Number);
       return recordDate.getFullYear() === year && recordDate.getMonth() === (month - 1);
     });
+    const recordedDates = new Set(records.map(record => record.date));
+    const [year, month] = activeDetailMonth.split('-').map(Number);
+    const totalDays = new Date(year, month, 0).getDate();
+    const missingRecords = [];
+    for (let day = 1; day <= totalDays; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      // Create date string in YYYY-MM-DD format.
+      const dateStr = `${activeDetailMonth}-${dayStr}`;
+      const dateObj = new Date(`${year}-${month}-${dayStr}`);
+      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+      if (!recordedDates.has(dateStr)) {
+        missingRecords.push({
+          id: dateStr,
+          date: dateStr,
+          status: (dayOfWeek === 0 || dayOfWeek === 6) ? "Off" : "No Record",
+          timeIn: "-",
+          lateArrivalApproved: "-"
+        });
+      }
+    }
+    const mergedRecords = [...records, ...missingRecords];
+    mergedRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+    return mergedRecords;
   };
 
   // Export the detailed attendance records as PDF using jsPDF.
@@ -110,7 +116,7 @@ const AttendanceSummary = () => {
     doc.setFontSize(12);
     const headers = [["Date", "Status", "Time In", "Late Arrival Approved"]];
     const records = getEmployeeRecordsForMonth(selectedEmployeeId).map(record => [
-      record.date,
+      formatDate(record.date),
       record.status,
       record.timeIn,
       record.lateArrivalApproved
@@ -137,36 +143,90 @@ const AttendanceSummary = () => {
     );
   }
 
+  const calculateWorkingDays = (activeMonth) => {
+    const [year, month] = activeMonth.split('-').map(Number);
+    const totalDays = new Date(year, month, 0).getDate();
+    let workingDays = 0;
+    for (let day = 1; day <= totalDays; day++) {
+      const dayStr = String(day).padStart(2, '0');
+      const dateObj = new Date(`${year}-${month}-${dayStr}`);
+      const dayOfWeek = dateObj.getDay(); // 0 = Sunday, 6 = Saturday
+      if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+        workingDays++;
+      }
+    }
+    return workingDays;
+  };
+
+  const workingDaysInMonth = calculateWorkingDays(activeFilterMonth);
+
   return (
     <div className="p-6 max-w-6xl mx-auto">
       <h2 className="text-3xl font-bold text-center mb-8 text-blue-800">Monthly Attendance Summary</h2>
+
+      {/* Filter for main summary */}
+      <div className="mb-6 flex flex-col sm:flex-row items-center justify-center gap-4">
+        <label className="text-gray-700 font-medium">Filter by Month:</label>
+        <input
+          type="month"
+          value={summaryFilterMonth}
+          onChange={(e) => setSummaryFilterMonth(e.target.value)}
+          className="px-3 py-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500"
+        />
+      </div>
+
       <div className="overflow-x-auto shadow-lg rounded-lg border border-gray-200">
         <table className="min-w-full bg-white">
           <thead>
             <tr className="bg-blue-500 text-white">
-              <th className="py-3 px-6 text-left font-semibold uppercase tracking-wider">Employee Name</th>
-              <th className="py-3 px-6 text-left font-semibold uppercase tracking-wider">Role</th>
-              <th className="py-3 px-6 text-center font-semibold uppercase tracking-wider">Present</th>
-              <th className="py-3 px-6 text-center font-semibold uppercase tracking-wider">Absent</th>
-              <th className="py-3 px-6 text-center font-semibold uppercase tracking-wider">Late Arrivals</th>
-              <th className="py-3 px-6 text-center font-semibold uppercase tracking-wider">Action</th>
+              <th className="py-3 px-4 text-left font-semibold uppercase tracking-wider">Employee Name</th>
+              <th className="py-3 px-4 text-left font-semibold uppercase tracking-wider">Role</th>
+              <th className="py-3 px-4 text-center font-semibold uppercase tracking-wider">Present</th>
+              <th className="py-3 px-4 text-center font-semibold uppercase tracking-wider">Absent</th>
+              <th className="py-3 px-4 text-center font-semibold uppercase tracking-wider">Late Arrivals</th>
+              <th className="py-3 px-4 text-center font-semibold uppercase tracking-wider">No Record</th>
+              <th className="py-3 px-4 text-center font-semibold uppercase tracking-wider">Action</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-200">
             {employees.map(emp => {
-              const summary = summaryByEmployee[emp.id] || { present: 0, absent: 0, lateArrival: 0 };
+              // Filter employee's records for the active month.
+              const empRecords = filteredAttendance.filter(record => record.employeeId === emp.id);
+              // Only count weekdays for missing count.
+              const uniqueDates = new Set(empRecords
+                .filter(r => {
+                  const d = new Date(r.date);
+                  const day = d.getDay();
+                  return day !== 0 && day !== 6; // exclude weekends
+                })
+                .map(r => r.date)
+              );
+              const missingCount = workingDaysInMonth - uniqueDates.size;
+              const summary = {
+                present: empRecords.filter(r => r.status === "Present").length,
+                absent: empRecords.filter(r => r.status === "Absent").length,
+                // Late arrival count: Present, not approved, and timeIn after 9:15 AM (555 minutes)
+                lateArrival: empRecords.filter(r =>
+                  r.status === "Present" &&
+                  r.lateArrivalApproved === "No" &&
+                  r.timeIn &&
+                  timeToMinutes(r.timeIn) > (9 * 60 + 15)
+                ).length
+              };
+
               return (
                 <tr key={emp.id} className="hover:bg-gray-100 transition-colors">
-                  <td className="py-4 px-6 whitespace-nowrap text-gray-800">{emp.name}</td>
-                  <td className="py-4 px-6 whitespace-nowrap text-gray-800">{emp.role}</td>
-                  <td className="py-4 px-6 whitespace-nowrap text-center text-green-700 font-bold">{summary.present}</td>
-                  <td className="py-4 px-6 whitespace-nowrap text-center text-red-700 font-bold">{summary.absent}</td>
-                  <td className="py-4 px-6 whitespace-nowrap text-center text-yellow-700 font-bold">{summary.lateArrival}</td>
-                  <td className="py-4 px-6 whitespace-nowrap text-center">
+                  <td className="py-4 px-4 whitespace-nowrap text-gray-800">{emp.name}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-gray-800">{emp.role}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-center text-green-700 font-bold">{summary.present}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-center text-red-700 font-bold">{summary.absent}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-center text-yellow-700 font-bold">{summary.lateArrival}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-center text-gray-700 font-bold">{missingCount}</td>
+                  <td className="py-4 px-4 whitespace-nowrap text-center">
                     <button
                       onClick={() => {
                         setSelectedEmployeeId(emp.id);
-                        setDetailMonth(''); // reset month filter
+                        setDetailMonth(''); // reset detail month filter
                         setIsDetailModalOpen(true);
                       }}
                       className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md transition"
@@ -225,10 +285,9 @@ const AttendanceSummary = () => {
                 <tbody className="divide-y divide-gray-200">
                   {getEmployeeRecordsForMonth(selectedEmployeeId).map(record => (
                     <tr key={record.id} className="hover:bg-gray-100 transition-colors">
-                      <td className="py-3 px-4 text-gray-800">{record.date}</td>
+                      <td className="py-3 px-4 text-gray-800">{formatDate(record.date)}</td>
                       <td className="py-3 px-4 text-center">
-                        <span className={`px-3 py-1 rounded-full font-medium ${
-                          record.status === 'Present'
+                        <span className={`px-3 py-1 rounded-full font-medium ${record.status === 'Present'
                             ? 'bg-green-200 text-green-800'
                             : record.status === 'Half Present'
                               ? 'bg-yellow-200 text-yellow-800'
@@ -237,7 +296,7 @@ const AttendanceSummary = () => {
                                 : record.status === 'Off'
                                   ? 'bg-gray-400 text-gray-800'
                                   : 'bg-blue-200 text-blue-800'
-                        }`}>
+                          }`}>
                           {record.status}
                         </span>
                       </td>

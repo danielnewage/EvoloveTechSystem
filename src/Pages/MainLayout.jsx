@@ -44,10 +44,14 @@ const MainLayout = () => {
         {/* Sidebar Header */}
         <div className="flex items-center justify-between p-4 bg-[#0a2635]">
           {isSidebarOpen ? (
-            <span className="text-xl font-bold text-white">Newage Dispatch</span>
+            <span className="text-xl font-bold text-white">Evolove Tech Systems</span>
           ) : (
-            <span className="text-xl font-bold text-white"></span>
-          )}
+            
+            <img
+            src={logo}
+            alt="User Avatar"
+            className="w-8 h-8 rounded-full object-cover"
+          />          )}
           <button
             onClick={toggleSidebar}
             className="text-white hover:text-gray-300 transition-colors"
@@ -106,6 +110,15 @@ const MainLayout = () => {
               >
                 <AiOutlineSetting className="text-xl" />
                 {isSidebarOpen && <span className="ml-3">Attendance Mark Sheet</span>}
+              </Link>
+            </li>
+            <li>
+              <Link
+                to="SalaryManageAuto"
+                className="flex items-center p-2 text-white rounded hover:bg-[#0c3044] transition-colors"
+              >
+                <AiOutlineSetting className="text-xl" />
+                {isSidebarOpen && <span className="ml-3">Salary Manage With Attandance</span>}
               </Link>
             </li>
             <li>

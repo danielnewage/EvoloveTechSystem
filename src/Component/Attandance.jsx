@@ -13,13 +13,9 @@ import {
 import { db } from '../Services/firebaseConfig'; // Adjust the path as needed
 
 const AttendanceMarkSheet = () => {
-  // Utility function to get current time in "HH:MM" format
-  const getCurrentTimeString = () => {
-    const now = new Date();
-    const hours = now.getHours().toString().padStart(2, '0');
-    const minutes = now.getMinutes().toString().padStart(2, '0');
-    return `${hours}:${minutes}`;
-  };
+  // Remove automatic time function and add a manual time state.
+  // Default time set to "06:00" (you can change as needed).
+  const [selectedTime, setSelectedTime] = useState("06:00");
 
   // Helper to check if a given date is a weekend (Saturday or Sunday)
   const isWeekend = (date) => {
@@ -113,10 +109,10 @@ const AttendanceMarkSheet = () => {
     const now = new Date();
     const currentHour = now.getHours();
     // Attendance allowed if hour is 15 or later OR before 3 (spanning midnight)
-    return currentHour >= 15 || currentHour < 3;
+    return currentHour >= 11 || currentHour < 3;
   };
 
-  // Mark single attendance: record current time automatically
+  // Mark single attendance: record manually selected time (selectedTime)
   const markAttendance = async () => {
     if (!isWithinAttendanceWindow()) {
       alert("Attendance can only be marked between 18:00 and 03:00.");
@@ -130,7 +126,8 @@ const AttendanceMarkSheet = () => {
       alert("Selected date cannot be in the future.");
       return;
     }
-    const currentTime = getCurrentTimeString();
+    // Use the manually selected time
+    const currentTime = selectedTime;
     let finalStatus = status;
     if (isWeekend(selectedDate)) {
       finalStatus = "Off";
@@ -161,6 +158,7 @@ const AttendanceMarkSheet = () => {
       const docRef = await addDoc(topLevelRef, newRecord);
       console.log("Attendance marked with ID:", docRef.id);
       setAttendance([...attendance, { id: docRef.id, ...newRecord }]);
+      // Clear employee selection after marking attendance if desired.
       setEmployeeId('');
       setName('');
       setRole('');
@@ -180,7 +178,7 @@ const AttendanceMarkSheet = () => {
       alert("Attendance can only be marked between 18:00 and 03:00.");
       return;
     }
-    const currentTime = getCurrentTimeString();
+    const currentTime = selectedTime; // Use manually selected time
     const dateString = selectedDate.toLocaleDateString('en-US');
     const eligibleEmployees = employees.filter(
       emp =>
@@ -255,7 +253,7 @@ const AttendanceMarkSheet = () => {
       alert("Name and Role cannot be changed.");
       return;
     }
-    const currentTime = getCurrentTimeString();
+    const currentTime = selectedTime; // Use manually selected time
     let updatedStatus = editRecord.status;
     if (isWeekend(selectedDate)) {
       updatedStatus = "Off";
@@ -375,7 +373,17 @@ const AttendanceMarkSheet = () => {
                 </select>
               </div>
             )}
-
+            {/* Time selection input */}
+            <div className="grid grid-cols-1 gap-4 mb-4">
+              <label className="font-medium">Select Time (in 10-minute increments):</label>
+              <input
+                type="time"
+                value={selectedTime}
+                onChange={(e) => setSelectedTime(e.target.value)}
+                step="600" // 600 seconds = 10 minutes
+                className="p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-400"
+              />
+            </div>
 
             <button
               onClick={markAttendance}
@@ -393,9 +401,9 @@ const AttendanceMarkSheet = () => {
           </div>
         </div>
 
-        {/* Display note about automatic time recording */}
+        {/* Display note about manual time selection */}
         <div className="mb-6 text-sm text-gray-600">
-          Note: The current time is recorded automatically. Attendance is only allowed between 18:00 and 03:00.
+          Note: Please manually select the time. Time should be in 10-minute intervals.
         </div>
 
         {/* Filter Section */}
