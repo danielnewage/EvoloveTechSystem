@@ -20,6 +20,7 @@ import AttendanceMarkSheet from "./Component/Attandance";
 import AttendanceSummary from "./Component/AttendanceSummary";
 import SalaryManageAuto from "./Component/SalaryMngWithAttandance";
 import EmployeeCredentialsPage from "./Component/EmployeeCredentialsPage";
+import ActivityIndicator from "./Component/ActivityIndicator";
 // Set persistence once at startup
 setPersistence(auth, browserLocalPersistence)
   .catch(err => console.error("Persistence error:", err));

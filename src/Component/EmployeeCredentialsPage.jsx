@@ -1,3 +1,4 @@
+// EmployeeCredentialsPage.jsx
 import React, { useState, useEffect } from "react";
 import {
   getFirestore,
@@ -11,8 +12,9 @@ import {
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import ActivityIndicator from "./ActivityIndicator";
+import SecurityModal from "./SecurityModal";
 
-const SECURITY_CODE = "9899"; // change to your secure key
+const SECURITY_CODE = "9899";
 
 const initialForm = {
   id: null,
@@ -24,7 +26,7 @@ const initialForm = {
   laptopPassword: "",
 };
 
-const EmployeeCredentialsPage = () => {
+export default function EmployeeCredentialsPage() {
   const db = getFirestore();
   const employeesRef = collection(db, "employees");
   const credsRef = collection(db, "employeeCredentials");
@@ -36,6 +38,12 @@ const EmployeeCredentialsPage = () => {
   const [modalOpen, setModalOpen] = useState(false);
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewData, setViewData] = useState(null);
+  const [securityModal, setSecurityModal] = useState({
+    open: false,
+    action: null,    // "view" | "delete" | "export"
+    payload: null,   // item or id
+    message: "",
+  });
 
   useEffect(() => {
     (async () => {
@@ -89,59 +97,84 @@ const EmployeeCredentialsPage = () => {
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this record?")) return;
+  const askForCode = ({ action, payload, message }) => {
+    setSecurityModal({ open: true, action, payload, message });
+  };
+
+  const onSecurityConfirm = async (code) => {
+    const { action, payload, message } = securityModal;
+    setSecurityModal((m) => ({ ...m, open: false }));
+
+    if (code !== SECURITY_CODE) {
+      return alert("Incorrect security code.");
+    }
+
     try {
-      await deleteDoc(doc(db, "employeeCredentials", id));
-      setCreds((list) => list.filter((x) => x.id !== id));
-      closeViewModal();
+      if (action === "view") {
+        setViewData(payload);
+        setViewModalOpen(true);
+      } else if (action === "delete") {
+        await deleteDoc(doc(db, "employeeCredentials", payload));
+        setCreds((list) => list.filter((x) => x.id !== payload));
+        setViewModalOpen(false);
+        setViewData(null);
+      } else if (action === "export") {
+        const docInst = new jsPDF();
+        docInst.text("Employee Credentials", 20, 20);
+        autoTable(docInst, {
+          startY: 30,
+          head: [["Employee", "Email", "Team Pass", "Agent", "Laptop Pass"]],
+          body: creds.map((c) => [
+            c.employeeName,
+            c.companyEmail,
+            c.companyTeamPassword,
+            c.agentName,
+            c.laptopPassword,
+          ]),
+        });
+        docInst.save("credentials.pdf");
+      }
     } catch (err) {
       console.error(err);
     }
   };
 
-  const handleView = (item) => {
-    const code = prompt("Enter security code:");
-    if (code === SECURITY_CODE) {
-      setViewData(item);
-      setViewModalOpen(true);
-    } else {
-      alert("Incorrect security code.");
-    }
-  };
-
-  const closeViewModal = () => {
-    setViewModalOpen(false);
-    setViewData(null);
-  };
-
-  const exportPDF = () => {
-    const code = prompt("Enter security code to export PDF:");
-    if (code !== SECURITY_CODE) {
-      alert("Incorrect code. Cannot export.");
-      return;
-    }
-    const docInst = new jsPDF();
-    docInst.text("Employee Credentials", 20, 20);
-    autoTable(docInst, {
-      startY: 30,
-      head: [["Employee", "Email", "Team Pass", "Agent", "Laptop Pass"]],
-      body: creds.map((c) => [
-        c.employeeName,
-        c.companyEmail,
-        c.companyTeamPassword,
-        c.agentName,
-        c.laptopPassword,
-      ]),
+  const handleView = (item) =>
+    askForCode({
+      action: "view",
+      payload: item,
+      message: "Enter security code to view credentials:",
     });
-    docInst.save("credentials.pdf");
+
+  const handleDelete = (id) => {
+    if (!window.confirm("Are you sure you want to delete this record?")) return;
+    askForCode({
+      action: "delete",
+      payload: id,
+      message: "Enter security code to delete this record:",
+    });
   };
 
-  if (loading) {
-    return <ActivityIndicator message="Loading ..." />;
-  }
+  const exportPDF = () =>
+    askForCode({
+      action: "export",
+      payload: null,
+      message: "Enter security code to export PDF:",
+    });
+
+  if (loading) return <ActivityIndicator message="Loading..." />;
+
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-8 bg-gray-100 rounded-2xl shadow-lg">
+      <SecurityModal
+        isOpen={securityModal.open}
+        message={securityModal.message}
+        onConfirm={onSecurityConfirm}
+        onCancel={() =>
+          setSecurityModal((m) => ({ ...m, open: false }))
+        }
+      />
+
       {/* Header */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 space-y-4 sm:space-y-0">
         <h1 className="text-2xl sm:text-4xl font-extrabold text-gray-800">
@@ -192,7 +225,6 @@ const EmployeeCredentialsPage = () => {
                   <td className="px-4 sm:px-6 py-3 text-sm sm:text-base">
                     {c.employeeName}
                   </td>
-
                   <td className="px-4 sm:px-6 py-3 text-sm sm:text-base">
                     {c.companyEmail}
                   </td>
@@ -271,36 +303,14 @@ const EmployeeCredentialsPage = () => {
                   <option value="Main Account">Main Account</option>
                   <option value="Billing">Billing</option>
                   <option value="Other">Other</option>
-
-
                 </select>
               </div>
               {[
-                {
-                  name: "companyEmail",
-                  label: "Company Email",
-                  type: "email",
-                },
-                {
-                  name: "companyEmailPassword",
-                  label: "Email Password",
-                  type: "password",
-                },
-                {
-                  name: "companyTeamPassword",
-                  label: "Team Password",
-                  type: "password",
-                },
-                {
-                  name: "agentName",
-                  label: "Agent Name",
-                  type: "text",
-                },
-                {
-                  name: "laptopPassword",
-                  label: "Laptop Password",
-                  type: "password",
-                },
+                { name: "companyEmail", label: "Company Email", type: "email" },
+                { name: "companyEmailPassword", label: "Email Password", type: "password" },
+                { name: "companyTeamPassword", label: "Team Password", type: "password" },
+                { name: "agentName", label: "Agent Name", type: "text" },
+                { name: "laptopPassword", label: "Laptop Password", type: "password" },
               ].map((f) => (
                 <div key={f.name}>
                   <label className="block mb-1">{f.label}*</label>
@@ -340,7 +350,10 @@ const EmployeeCredentialsPage = () => {
             <div className="flex justify-between items-center bg-blue-600 px-4 py-3">
               <h2 className="text-white text-xl">View Credentials</h2>
               <button
-                onClick={closeViewModal}
+                onClick={() => {
+                  setViewModalOpen(false);
+                  setViewData(null);
+                }}
                 className="text-white text-2xl leading-none"
               >
                 &times;
@@ -366,7 +379,10 @@ const EmployeeCredentialsPage = () => {
                 Delete
               </button>
               <button
-                onClick={closeViewModal}
+                onClick={() => {
+                  setViewModalOpen(false);
+                  setViewData(null);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
               >
                 Close
@@ -377,6 +393,4 @@ const EmployeeCredentialsPage = () => {
       )}
     </div>
   );
-};
-
-export default EmployeeCredentialsPage;
+}

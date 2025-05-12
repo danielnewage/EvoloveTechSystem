@@ -16,7 +16,7 @@ import {
   
 } from "firebase/firestore";
 import { auth } from "../Services/firebaseConfig";
-import ActivityIndicator from "./ActivityIndicator"; // Adjust path if needed
+import ActivityIndicator from "./ActivityIndicator";
 
 const Employees = () => {
   const db = getFirestore();
