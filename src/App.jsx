@@ -66,6 +66,8 @@ export default function App() {
         >
           {isAttendanceUser ? (
             <>
+              <Route path="dashboard" element={<DashboardContent />} />
+              {/* <Route path="employee" element={<Employees />} /> */}
               <Route index element={<Navigate to="attendance-mark" replace />} />
               <Route path="attendance-mark" element={<AttendanceMarkSheet />} />
               <Route path="attendance-summary" element={<AttendanceSummary />} />

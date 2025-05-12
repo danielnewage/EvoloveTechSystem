@@ -2,11 +2,13 @@ import React, { useState } from "react";
 import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
+  AiOutlineDashboard,
   AiOutlineCalendar,
   AiOutlineFileSearch,
   AiOutlineSearch,
   AiOutlineClose,
-  AiOutlineMenu
+  AiOutlineMenu,
+  AiOutlineUser
 } from "react-icons/ai";
 import { FaSignOutAlt } from "react-icons/fa";
 import logo from "../assets/logo.png";
@@ -14,6 +16,8 @@ import { signOut } from "firebase/auth";
 import { auth } from "../Services/firebaseConfig";
 
 const navItems = [
+  { to: "/admin/dashboard", icon: <AiOutlineDashboard />, label: "Dashboard" },
+  // { to: "/admin/employee", icon: <AiOutlineUser />, label: "Employees" },
   { to: "/admin/attendance-mark", icon: <AiOutlineCalendar />, label: "Mark Attendance" },
   { to: "/admin/attendance-summary", icon: <AiOutlineFileSearch />, label: "Summary" },
 ];
@@ -30,6 +34,7 @@ export default function AttendanceLayout() {
 
   return (
     <div className="flex h-screen bg-gray-50">
+      {/* Sidebar */}
       <motion.aside
         animate={{ width: open ? 240 : 64 }}
         transition={{ type: "spring", stiffness: 200, damping: 30 }}
@@ -37,20 +42,26 @@ export default function AttendanceLayout() {
       >
         <div className="flex items-center justify-between px-4 py-3">
           {open && <h1 className="text-lg font-bold">Evolove Tech</h1>}
-          <button onClick={() => setOpen(o => !o)}>
-            {open ? <AiOutlineClose /> : <AiOutlineMenu />}
+          <button
+            aria-label={open ? "Close sidebar" : "Open sidebar"}
+            onClick={() => setOpen(o => !o)}
+          >
+            {open ? <AiOutlineClose size={20} /> : <AiOutlineMenu size={20} />}
           </button>
         </div>
+
         <nav className="mt-8">
-          {navItems.map(({to, icon, label}) => {
+          {navItems.map(({ to, icon, label }) => {
             const active = loc.pathname === to;
             return (
               <Link
                 key={to}
                 to={to}
-                className={`flex items-center p-2 mx-2 rounded-md hover:bg-teal-500 transition-colors ${
-                  active ? "bg-teal-500" : ""
-                }`}
+                className={`
+                  flex items-center p-2 mx-2 rounded-md
+                  hover:bg-teal-500 transition-colors
+                  ${active ? "bg-teal-500" : ""}
+                `}
               >
                 <span className="text-xl">{icon}</span>
                 {open ? (
@@ -64,8 +75,10 @@ export default function AttendanceLayout() {
             );
           })}
         </nav>
+
         <div className="absolute bottom-4 w-full text-center">
           <button
+            aria-label="Log out"
             onClick={handleLogout}
             className="flex items-center justify-center gap-2 w-3/4 mx-auto bg-red-500 hover:bg-red-600 px-4 py-2 rounded-full transition-colors"
           >
@@ -75,7 +88,8 @@ export default function AttendanceLayout() {
         </div>
       </motion.aside>
 
-      <div className={`flex-1 flex flex-col transition-all`}>
+      {/* Main content */}
+      <div className="flex-1 flex flex-col transition-all">
         <header className="flex items-center justify-between bg-white shadow px-6 py-4">
           <div className="flex items-center bg-gray-100 rounded px-3 py-1 w-60">
             <AiOutlineSearch className="text-gray-500" />
@@ -86,10 +100,11 @@ export default function AttendanceLayout() {
             />
           </div>
         </header>
+
         <main className="p-6 bg-white overflow-auto">
           <Outlet />
         </main>
       </div>
     </div>
-  );
+);
 }

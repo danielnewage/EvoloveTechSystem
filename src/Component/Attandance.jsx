@@ -230,7 +230,7 @@ const AttendanceMarkSheet = () => {
   const openEditModal = (record) => {
     if (attendance.find(rec => rec.employeeId === record.employeeId && rec.date === currentDateString)) {
       setEditRecord(record);
-      setupdateSelectedTime(record.timeIn);           
+      setupdateSelectedTime(record.timeIn);
       setIsModalOpen(true);
     } else {
       alert("No attendance record to edit. Please mark attendance first.");
@@ -248,7 +248,7 @@ const AttendanceMarkSheet = () => {
       return;
     }
 
-    const currentTime = updateSelectedTime;            // ← use the modal’s time
+    const currentTime = updateSelectedTime;
     let updatedStatus = editRecord.status;
 
     if (isWeekend(selectedDate)) {
@@ -525,14 +525,14 @@ const AttendanceMarkSheet = () => {
 
                   onChange={(e) => handleEditChange('status', e.target.value)}
                 >
-                  <option value="Approved Leave">Approved Leave</option>
+                  <option value="Absent">Absent</option>
+                  <option value="Off">Off</option>
+                  {/* <option value="Approved Leave">Approved Leave</option> */}
                   <option value="Present">Present</option>
                   <option value="Work From Home">Work From Home</option>
-                  <option value="Emergency Leave">Emergency Leave</option>
+                  {/* <option value="Emergency Leave">Emergency Leave</option>
                   <option value="Medical Leave">Medical Leave</option>
-                  <option value="Absent">Absent</option>
-                  <option value="Holiday">Holiday</option>
-                  <option value="Off">Off</option>
+                  <option value="Holiday">Holiday</option> */}
                 </select>
               </div>
               {(editRecord.status === 'Present' || editRecord.status === 'Work From Home') && (
