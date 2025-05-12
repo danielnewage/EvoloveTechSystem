@@ -19,7 +19,7 @@ import EmployeeSalaryTable from "./Component/EmployeeSalaryTable";
 import AttendanceMarkSheet from "./Component/Attandance";
 import AttendanceSummary from "./Component/AttendanceSummary";
 import SalaryManageAuto from "./Component/SalaryMngWithAttandance";
-
+import EmployeeCredentialsPage from "./Component/EmployeeCredentialsPage";
 // Set persistence once at startup
 setPersistence(auth, browserLocalPersistence)
   .catch(err => console.error("Persistence error:", err));
@@ -77,6 +77,7 @@ export default function App() {
             <>
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<DashboardContent />} />
+              <Route path="EmployeeCredentialsPage" element={<EmployeeCredentialsPage />} />
               <Route path="employee" element={<Employees />} />
               <Route path="management" element={<SalaryManagement />} />
               <Route path="salaries" element={<EmployeeSalaryTable />} />

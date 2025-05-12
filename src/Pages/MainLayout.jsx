@@ -28,6 +28,7 @@ export default function MainLayout() {
 
   const items = [
     { to: "/admin/dashboard", icon: <AiOutlineDashboard />, label: "Dashboard" },
+    { to: "/admin/EmployeeCredentialsPage", icon: <AiOutlineDashboard />, label: "Employee Credentials" },
     { to: "/admin/employee", icon: <AiOutlineUser />, label: "Employees" },
     { to: "/admin/management", icon: <AiOutlineBank />, label: "Manage Salary" },
     { to: "/admin/salaries", icon: <AiOutlineDollarCircle />, label: "Salary List" },
@@ -39,9 +40,8 @@ export default function MainLayout() {
   return (
     <div className="flex h-screen bg-gray-100 text-gray-800">
       {/* Sidebar */}
-      <aside className={`fixed top-0 left-0 h-full bg-[#0a2635] text-white transition-width duration-300 ${
-        open ? "w-64" : "w-16"
-      }`}>
+      <aside className={`fixed top-0 left-0 h-full bg-[#0a2635] text-white transition-width duration-300 ${open ? "w-64" : "w-16"
+        }`}>
         <div className="flex items-center justify-between p-4">
           {open && <span className="text-xl font-bold">Evolove Tech</span>}
           <button onClick={() => setOpen(o => !o)}>
@@ -49,7 +49,7 @@ export default function MainLayout() {
           </button>
         </div>
         <nav className="mt-4">
-          {items.map(({to, icon, label}) => (
+          {items.map(({ to, icon, label }) => (
             <Link
               key={to}
               to={to}
@@ -72,9 +72,8 @@ export default function MainLayout() {
       </aside>
 
       {/* Main content */}
-      <div className={`flex-1 flex flex-col transition-margin duration-300 ${
-        open ? "ml-64" : "ml-16"
-      }`}>
+      <div className={`flex-1 flex flex-col transition-margin duration-300 ${open ? "ml-64" : "ml-16"
+        }`}>
         <header className="flex items-center justify-between bg-white shadow px-6 py-4">
           <div className="flex items-center bg-gray-100 rounded px-3 py-1 w-60">
             <AiOutlineSearch className="text-gray-500" />
