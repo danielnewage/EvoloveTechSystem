@@ -12,6 +12,7 @@ import {
   AiOutlineClose,
   AiOutlineMenu
 } from "react-icons/ai";
+
 import { FaSignOutAlt } from "react-icons/fa";
 import logo from "../assets/logo.png";
 import { signOut } from "firebase/auth";
@@ -28,7 +29,7 @@ export default function MainLayout() {
 
   const items = [
     { to: "/admin/dashboard", icon: <AiOutlineDashboard />, label: "Dashboard" },
-    { to: "/admin/EmployeeCredentialsPage", icon: <AiOutlineDashboard />, label: "Employee Credentials" },
+    { to: "/admin/EmployeeCredentialsPage", icon: <AiOutlineUser  />, label: "Employee Credentials" },
     { to: "/admin/employee", icon: <AiOutlineUser />, label: "Employees" },
     { to: "/admin/management", icon: <AiOutlineBank />, label: "Manage Salary" },
     { to: "/admin/salaries", icon: <AiOutlineDollarCircle />, label: "Salary List" },

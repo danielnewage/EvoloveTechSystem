@@ -38,7 +38,7 @@ export default function App() {
   }, []);
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <ActivityIndicator message="Loading ..." />;
   }
 
   const isAttendanceUser = user?.email == "attendance@evolovetechsystems.com";

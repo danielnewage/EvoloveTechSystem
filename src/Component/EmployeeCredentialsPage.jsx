@@ -10,6 +10,7 @@ import {
 } from "firebase/firestore";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import ActivityIndicator from "./ActivityIndicator";
 
 const SECURITY_CODE = "9899"; // change to your secure key
 
@@ -136,8 +137,9 @@ const EmployeeCredentialsPage = () => {
     docInst.save("credentials.pdf");
   };
 
-  if (loading) return <div className="p-6 text-center">Loading...</div>;
-
+  if (loading) {
+    return <ActivityIndicator message="Loading ..." />;
+  }
   return (
     <div className="max-w-5xl mx-auto p-4 sm:p-8 bg-gray-100 rounded-2xl shadow-lg">
       {/* Header */}
@@ -190,7 +192,7 @@ const EmployeeCredentialsPage = () => {
                   <td className="px-4 sm:px-6 py-3 text-sm sm:text-base">
                     {c.employeeName}
                   </td>
-                
+
                   <td className="px-4 sm:px-6 py-3 text-sm sm:text-base">
                     {c.companyEmail}
                   </td>
@@ -263,7 +265,14 @@ const EmployeeCredentialsPage = () => {
                       {e.name}
                     </option>
                   ))}
-                  <option value="Nothing Use">Nothing Use</option>
+                  <option value="Nothing Use">No Use</option>
+                  <option value="CEO">CEO</option>
+                  <option value="CFO">CFO</option>
+                  <option value="Main Account">Main Account</option>
+                  <option value="Billing">Billing</option>
+                  <option value="Other">Other</option>
+
+
                 </select>
               </div>
               {[
