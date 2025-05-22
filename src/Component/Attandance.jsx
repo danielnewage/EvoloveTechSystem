@@ -11,6 +11,7 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from '../Services/firebaseConfig';
+import ActivityIndicator from './ActivityIndicator';
 
 const AttendanceMarkSheet = () => {
   const getCurrentTime = () => {
@@ -44,7 +45,8 @@ const AttendanceMarkSheet = () => {
 
   const [isHolidayModalOpen, setIsHolidayModalOpen] = useState(false);
   const [holidayOption, setHolidayOption] = useState('No');
-
+  const [LoadingBTn, setLoadingBTn] = useState(false);
+  const [loadingBTnHoliday, setLoadingBTnHoliday] = useState(false);
   const [employees, setEmployees] = useState([]);
 
   useEffect(() => {
@@ -113,6 +115,7 @@ const AttendanceMarkSheet = () => {
       alert("Attendance can only be marked between 17:00 and 02:00.");
       return;
     }
+
     if (name.trim() === '' || role.trim() === '' || employeeId === '') {
       alert("Please select an employee (name and role).");
       return;
@@ -146,6 +149,7 @@ const AttendanceMarkSheet = () => {
       createdAt: new Date()
     };
     try {
+      setLoadingBTn(true);
       const subcollectionRef = collection(db, "employees", employeeId, "attendance");
       await addDoc(subcollectionRef, newRecord);
       const topLevelRef = collection(db, "employeesattendance");
@@ -158,6 +162,10 @@ const AttendanceMarkSheet = () => {
       setLateArrivalApproved('No');
     } catch (error) {
       console.error("Error marking attendance:", error);
+    }
+    finally {
+      setLoadingBTn(false);
+
     }
   };
 
@@ -194,6 +202,7 @@ const AttendanceMarkSheet = () => {
         createdAt: new Date()
       };
       try {
+        setLoadingBTnHoliday(true);
         const subcollectionRef = collection(db, "employees", emp.id, "attendance");
         await addDoc(subcollectionRef, holidayRecord);
         const topLevelRef = collection(db, "employeesattendance");
@@ -202,6 +211,10 @@ const AttendanceMarkSheet = () => {
         setAttendance(prev => [...prev, { id: docRef.id, ...holidayRecord }]);
       } catch (error) {
         console.error("Error marking holiday attendance for", emp.name, error);
+      }
+      finally {
+        setLoadingBTnHoliday(false);
+
       }
     }
     setIsHolidayModalOpen(false);
@@ -256,7 +269,6 @@ const AttendanceMarkSheet = () => {
     } else if (editRecord.status === 'Holiday') {
       updatedStatus = "Present";
     } else {
-      // now this will see the time the user picked in the modal
       if (editRecord.status === 'Present' &&
         currentTime >= "20:00" &&
         editRecord.lateArrivalApproved === 'No') {
@@ -269,7 +281,7 @@ const AttendanceMarkSheet = () => {
     const updatedRecord = {
       ...editRecord,
       status: updatedStatus,
-      timeIn: currentTime,    // ensure timeIn and status line up
+      timeIn: currentTime,
     };
     try {
       const attendanceDocRef = doc(db, "employeesattendance", editRecord.id);
@@ -384,13 +396,15 @@ const AttendanceMarkSheet = () => {
               onClick={markAttendance}
               className="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold p-3 rounded-md transition"
             >
-              Mark Attendance
+              {LoadingBTn ? (<ActivityIndicator />) : "Mark Attendance"}
             </button>
             <button
               onClick={() => setIsHolidayModalOpen(true)}
               className="mt-4 w-full bg-red-500 hover:bg-red-600 text-white font-semibold p-3 rounded-md transition"
             >
-              Mark Holiday For All
+              {loadingBTnHoliday ? (<ActivityIndicator />) : "Mark Holiday For All"}
+
+
             </button>
           </div>
         </div>
